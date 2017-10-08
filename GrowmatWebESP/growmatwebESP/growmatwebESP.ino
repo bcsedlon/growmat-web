@@ -1,8 +1,6 @@
-
-
 #include "libraries/ESP8266HTTPClient.h"
-#define IP "184.106.153.149" // ThingSpeak IP Address: 184.106.153.149
-String GET = "http://184.106.153.149/update?key=";//TEERFD89BN6SDE19";//8OC2G029OG74M1V9"; //TODO: 8OC2G029OG74M1V9 change to https://thingspeak.com api write key
+//#define IP "184.106.153.149" // ThingSpeak IP Address: 184.106.153.149
+//String GET = "http://184.106.153.149/update?key=";//TEERFD89BN6SDE19";//8OC2G029OG74M1V9"; //TODO: 8OC2G029OG74M1V9 change to https://thingspeak.com api write key
 // https://thingspeak.com/channels/189974
 // GET /update?key=[THINGSPEAK_KEY]&field1=[data 1]&field2=[data 2]...;
 // String GET = "GET /update?key=THINGSPEAK_KEY";
@@ -19,11 +17,16 @@ String GET = "http://184.106.153.149/update?key=";//TEERFD89BN6SDE19";//8OC2G029
 ESP8266WebServer server(80);
 
 char* htmlHeader = "<html><head><meta name=\"viewport\" content=\"width=device-width\"><style type=\"text/css\">button {height:100px;width:100px;font-family:monospace;border-radius:5px;}</style></head><body><h1><a href=/>GROWMAT WEB</a></h1>";
-char* htmlFooter = "</body></html>";
+char* htmlFooter = "<hr><a href=/settings>SYSTEM SETTINGS</a></body></html>";
 //const char HTTP_STYLE[] PROGMEM  = "<style>.c{text-align: center;} div,input{padding:5px;font-size:1em;} input{width:95%;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#1fa3ec;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} .q{float: right;width: 64px;text-align: right;} .l{background: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAALVBMVEX///8EBwfBwsLw8PAzNjaCg4NTVVUjJiZDRUUUFxdiZGSho6OSk5Pg4eFydHTCjaf3AAAAZElEQVQ4je2NSw7AIAhEBamKn97/uMXEGBvozkWb9C2Zx4xzWykBhFAeYp9gkLyZE0zIMno9n4g19hmdY39scwqVkOXaxph0ZCXQcqxSpgQpONa59wkRDOL93eAXvimwlbPbwwVAegLS1HGfZAAAAABJRU5ErkJggg==\") no-repeat left center;background-size: 1em;}</style>";
 
 const char* www_username = "admin";
 const char* www_password = "admin";
+
+char serverName[20];
+char writeApiKey[20];
+unsigned int talkbackID;
+char talkbackApiKey[20];
 
 #include <WiFiUdp.h>
 
@@ -100,7 +103,7 @@ float temperature;
 #define CMD_BIT 2
 #define RAIN_BIT 3
 
-#define EEPROM_OFFSET 8
+#define EEPROM_OFFSET 64 //8
 
 struct Device {
 	byte par1;
@@ -198,9 +201,32 @@ void handleRoot(){
 
 bool ap, led1;
 
+void saveApi() {
+	int offset = 8;
+	EEPROM.put(offset, serverName);
+	offset += sizeof(serverName);
+	EEPROM.put(offset, writeApiKey);
+	offset += sizeof(writeApiKey);
+	EEPROM.put(offset, talkbackApiKey);
+	offset += sizeof(talkbackApiKey);
+	EEPROM.put(offset, talkbackID);
+	EEPROM.write(0, 0);
+	EEPROM.commit();
+}
+
+void saveInstruments() {
+	for(int d=0; d< DEVICES_NUM; d++) {
+		EEPROM.put(EEPROM_OFFSET + sizeof(Device) * d, devices[d]);
+	}
+	EEPROM.write(0, 0);
+	EEPROM.commit();
+}
+
 void setup() {
   // put your setup code here, to run once:
-
+  //strcpy(writeApiKey, "SGRXDOXDL4F6CIGQ");
+  //talkbackID = 18221;
+  //strcpy(talkbackApiKey, "ED57BAC7V0GLPWL2");
 
   Serial.begin(115200);
   Serial.print("\n\n");
@@ -209,9 +235,35 @@ void setup() {
 
   EEPROM.begin(512);
   if(!EEPROM.read(0)) {
+  //if(false) {
+
+	  int offset = 8;
+	  //for(int i=0; i<20; i++) {
+	  //	 EEPROM.get(offset++, writeApiKey[i]);
+	  //}
+	  //for(int i=0; i<20; i++) {
+	  //	 EEPROM.get(offset++, talkbackApiKey[i]);
+	  //}
+	  EEPROM.get(offset, serverName);
+	  offset += sizeof(serverName);
+      EEPROM.get(offset, writeApiKey);
+      offset += sizeof(writeApiKey);
+      EEPROM.get(offset, talkbackApiKey);
+      offset += sizeof(talkbackApiKey);
+	  EEPROM.get(offset, talkbackID);
+
 	  for(int d=0; d< DEVICES_NUM; d++) {
 		  EEPROM.get(EEPROM_OFFSET + sizeof(Device) * d, devices[d]);
 	  }
+  }
+  else {
+	  strcpy(serverName, "api.thingspeak.com") ;
+	  writeApiKey[0] = '/0';
+	  talkbackID = 0;
+	  talkbackApiKey[0], '/0';
+
+	  saveApi();
+	  saveInstruments();
   }
 
   strcpy(devices[0].name, "LIGHT");
@@ -350,7 +402,7 @@ void setup() {
     }
     message += "</table>";
     //message += "</body></html>";
-    message += "<hr><a href=./save>SAVE SETTINGS!</a>";
+    message += "<hr><a href=./save>SAVE INSTRUMENTS!</a>";
     message += htmlFooter;
     server.send(200, "text/html", message);
   });
@@ -371,21 +423,7 @@ void setup() {
       if(!server.authenticate(www_username, www_password))
         return server.requestAuthentication();
 
-      for(int d=0; d< DEVICES_NUM; d++) {
-    	  //for(int j=0; j < sizeof(struct Device); j++) {
-    	//	  EEPROM.write((i * sizeof(struct Device)) + j, (unsigned char)(**devices + i * sizeof(struct Device) + j));
-    	//  }
-    	  EEPROM.put(EEPROM_OFFSET + sizeof(Device) * d, devices[d]);
-    	  //for(unsigned int i = 0; i<sizeof(Device); i++){
-    		  // +i has to be outside of the parentheses in order to increment the address
-    		  // by the size of a char. Otherwise you would increment by the size of
-    		  // struct_data. You also have to dereference the whole thing, or you will
-    		  // assign an address to data[i]
-    //		  EEPROM.data[i] = *((char*)(&device) + i);
-    	//  }
-      }
-      EEPROM.write(0, 0);
-      EEPROM.commit();
+      saveInstruments();
 
       char value;
       for(int i=0; i < 512; i++) {
@@ -403,6 +441,103 @@ void setup() {
       server.send(200, "text/html", message);
 
   });
+
+  server.on("/settings", [](){
+        Serial.println("/settings");
+        if(!server.authenticate(www_username, www_password))
+          return server.requestAuthentication();
+
+        time_t t = CE.toLocal(timeClient.getEpochTime());
+		byte h = (t / 3600) % 24;
+		byte m = (t / 60) % 60;
+		byte s = t % 60;
+
+        String message = htmlHeader;
+        message += "<hr>";
+        message += "<form action=/savesettings>";
+        message += "HOURS<br><input name=hours value=";
+        //message += timeClient.getHours();
+        message += h;
+        message += "><br>";
+        message += "<br>MINUTES<br><input name=minutes value=";
+		//message += timeClient.getMinutes();
+        message += m;
+		message += "><br>";
+        message += "<br>SECONDS<br><input name=seconds value=";
+        //message += timeClient.getSeconds();
+        message += s;
+
+        message += "><br>";
+		message += "<br>YEAR<br><input name=year value=";
+		//message += timeClient.getMinutes();
+		//message += time_t;
+        message += "><br>";
+		message += "<br>MONTH<br><input name=month value=";
+		//message += timeClient.getMinutes();
+		//message += m;
+        message += "><br>";
+		message += "<br>DAY<br><input name=day value=";
+		//message += timeClient.getMinutes();
+		//message += m;
+
+
+        message += "><br><br>";
+        message += "<button type=submit name=cmd value=settime>SET TIME</button>";
+        message += "</form>";
+        message += "<hr>";
+
+        message += "<form action=/savesettings>";
+        message += "SERVER NAME<br><input name=servername value=";
+		message += serverName;
+		message += "><br>";
+	    message += "<br>WRITE API KEY<br><input name=writeapikey value=";
+	    message += writeApiKey;
+	    message += "><br>";
+	    message += "<br>TALKBACK ID<br><input name=talkbackid value=";
+		message += talkbackID;
+		message += "><br>";
+	    message += "<br>TALKBACK API KEY<br><input name=talkbackapikey value=";
+	    message += talkbackApiKey;
+	    message += "><br><br>";
+	    message += "<button type=submit name=cmd value=setapi>SET API!</button>";
+	    message += "</form>";
+
+        message += htmlFooter;
+        server.send(200, "text/html", message);
+
+    });
+
+  server.on("/savesettings", [](){
+          Serial.println("/savesettings");
+
+          if(!server.authenticate(www_username, www_password))
+            return server.requestAuthentication();
+
+          String message = htmlHeader;
+          if(server.arg("cmd").equals("settime")) {
+        	  int offset = CE.toUTC(0) - CE.toLocal(0);
+        	  //Serial.println(offset);
+			  byte h=(unsigned long)server.arg("hours").toInt() + offset / 3600;
+			  byte m=(unsigned long)server.arg("minutes").toInt() + offset / 60;
+			  byte s=(unsigned long)server.arg("seconds").toInt() + offset;
+          	  timeClient.setEpochTime(h * 3600 + m * 60 + s);
+          	  message += "TIME SET";
+  	  	  }
+
+          if(server.arg("cmd").equals("setapi")) {
+        	  strcpy(serverName, server.arg("servername").c_str());
+        	  strcpy(writeApiKey, server.arg("writeapikey").c_str());
+        	  talkbackID = server.arg("talkbackid").toInt();
+        	  strcpy(talkbackApiKey, (char*)server.arg("talkbackapikey").c_str());
+        	  message += "API SET";
+
+        	  saveApi();
+          }
+
+          message += htmlFooter;
+          server.send(200, "text/html", message);
+
+      });
 
   server.on("/dev", [](){
     Serial.println("/dev");
@@ -474,74 +609,86 @@ void loop() {
   if(minInterval.expired()) {
 	  minInterval.set(60000);
 	  //minInterval.set(5000);
-	  timeClient.update();
-
 	  digitalWrite(LED1_PIN, LOW);
 
 
+	  timeClient.update();
 
-	  String alarm = String(bitRead(devices[2].flags, OUTPUT_BIT) + bitRead(devices[3].flags, OUTPUT_BIT) * 10);
 
-	  String l = String(bitRead(devices[0].flags, OUTPUT_BIT) + bitRead(devices[0].flags, MANUAL_BIT) * 10);
-	  String f = String(bitRead(devices[1].flags, OUTPUT_BIT) + bitRead(devices[1].flags, MANUAL_BIT) * 10);
-	  String get = GET + "SGRXDOXDL4F6CIGQ" + "&field1=" + alarm +"&field2="+ String(temperature) + "&field3=" + l  + "&field4=" + f;
-	  Serial.println(get);
-	  HTTPClient http;  //Declare an object of class HTTPClient
 
-	  int httpCode;
-	  do {
-		  http.begin("http://api.thingspeak.com/talkbacks/18221/commands/execute?api_key=ED57BAC7V0GLPWL2");
+
+	  if(serverName != "") {
+		  HTTPClient http;  //Declare an object of class HTTPClient
+
+		  int httpCode;
+		  do {
+			  //http.begin("http://api.thingspeak.com/talkbacks/18221/commands/execute?api_key=ED57BAC7V0GLPWL2");
+			  //String getTalkback = "http://api.thingspeak.com/talkbacks/" + String(talkbackID) + "/commands/execute?api_key=" + talkbackApiKey;
+			  String getTalkback = "http://" + String(serverName) + "/talkbacks/" + String(talkbackID) + "/commands/execute?api_key=" + talkbackApiKey;
+			  Serial.println(getTalkback);
+			  http.begin(getTalkback);
+			  httpCode = http.GET();                                                                  //Send the request
+			  //Serial.println(httpCode);
+			  //Serial.println(http.errorToString(httpCode));
+
+			  if (httpCode > 0) { //Check the returning code
+				  String payload = http.getString();   //Get the request response payload
+				  Serial.println(payload);                     //Pri
+				  if(payload == "")
+					  break;
+				  if(payload == "error_auth_required")
+					  break;
+				  if(payload.charAt(0)=='L') {
+					  if(payload.charAt(1)=='0') {
+						  bitClear(devices[0].flags, OUTPUT_BIT);
+						  bitSet(devices[0].flags, MANUAL_BIT);
+					  }
+					  else if(payload.charAt(1)=='1') {
+						  bitSet(devices[0].flags, OUTPUT_BIT);
+						  bitSet(devices[0].flags, MANUAL_BIT);
+					  }
+					  else if(payload.charAt(1)=='A') {
+						  bitClear(devices[0].flags, MANUAL_BIT);
+					  }
+				  }
+				  if(payload.charAt(0)=='F') {
+					  if(payload.charAt(1)=='0') {
+						  bitClear(devices[1].flags, OUTPUT_BIT);
+						  bitSet(devices[1].flags, MANUAL_BIT);
+					  }
+					  else if(payload.charAt(1)=='1') {
+						  bitSet(devices[1].flags, OUTPUT_BIT);
+						  bitSet(devices[1].flags, MANUAL_BIT);
+					  }
+					  else if(payload.charAt(1)=='A') {
+						  bitClear(devices[1].flags, MANUAL_BIT);
+					  }
+				  }
+			  }
+			  else
+				  break;
+		  } while (true);
+
+
+		  String alarm = String(bitRead(devices[2].flags, OUTPUT_BIT) + bitRead(devices[3].flags, OUTPUT_BIT) * 10);
+		  String l = String(bitRead(devices[0].flags, OUTPUT_BIT) + bitRead(devices[0].flags, MANUAL_BIT) * 10);
+		  String f = String(bitRead(devices[1].flags, OUTPUT_BIT) + bitRead(devices[1].flags, MANUAL_BIT) * 10);
+		  //String get = GET + "SGRXDOXDL4F6CIGQ" + "&field1=" + alarm +"&field2="+ String(temperature) + "&field3=" + l  + "&field4=" + f;
+		  //String get = GET + writeApiKey + "&field1=" + alarm +"&field2="+ String(temperature) + "&field3=" + l  + "&field4=" + f;
+		  String get = "http://" + String(serverName) + "/update?key=" + writeApiKey + "&field1=" + alarm +"&field2="+ String(temperature) + "&field3=" + l  + "&field4=" + f;
+		  Serial.println(get);
+		  http.begin(get);  //Specify request destination
 		  httpCode = http.GET();                                                                  //Send the request
 		  //Serial.println(httpCode);
 		  //Serial.println(http.errorToString(httpCode));
-
 		  if (httpCode > 0) { //Check the returning code
-			  String payload = http.getString();   //Get the request response payload
-			  Serial.println(payload);                     //Pri
-			  if(payload == "")
-				  break;
-			  if(payload.charAt(0)=='L') {
-				  if(payload.charAt(1)=='0') {
-					  bitClear(devices[0].flags, OUTPUT_BIT);
-					  bitSet(devices[0].flags, MANUAL_BIT);
-				  }
-				  else if(payload.charAt(1)=='1') {
-					  bitSet(devices[0].flags, OUTPUT_BIT);
-					  bitSet(devices[0].flags, MANUAL_BIT);
-				  }
-				  else if(payload.charAt(1)=='A') {
-					  bitClear(devices[0].flags, MANUAL_BIT);
-				  }
-			  }
-			  if(payload.charAt(0)=='F') {
-				  if(payload.charAt(1)=='0') {
-					  bitClear(devices[1].flags, OUTPUT_BIT);
-					  bitSet(devices[1].flags, MANUAL_BIT);
-				  }
-				  else if(payload.charAt(1)=='1') {
-					  bitSet(devices[1].flags, OUTPUT_BIT);
-					  bitSet(devices[1].flags, MANUAL_BIT);
-				  }
-				  else if(payload.charAt(1)=='A') {
-					  bitClear(devices[1].flags, MANUAL_BIT);
-				  }
-			  }
+			String payload = http.getString();   //Get the request response payload
+			Serial.println(payload);                     //Print the response payload
 		  }
-		  else
-			  break;
-	  } while (true);
 
-	  http.begin(get);  //Specify request destination
-	  httpCode = http.GET();                                                                  //Send the request
-	  //Serial.println(httpCode);
-	  //Serial.println(http.errorToString(httpCode));
-	  if (httpCode > 0) { //Check the returning code
-		String payload = http.getString();   //Get the request response payload
-		Serial.println(payload);                     //Print the response payload
-	  }
-
-	      http.end();   //Close connection
-	      digitalWrite(LED1_PIN, HIGH);
+		  http.end();   //Close connection
+  	  }
+	  digitalWrite(LED1_PIN, HIGH);
   }
   if (secInterval.expired()) {
   		secInterval.set(1000);

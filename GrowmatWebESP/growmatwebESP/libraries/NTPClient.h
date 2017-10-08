@@ -88,4 +88,6 @@ class NTPClient {
      * Stops the underlying UDP client
      */
     void end();
+
+    void setEpochTime(unsigned long currentEpoc);
 };

@@ -101,6 +101,11 @@ bool NTPClient::update() {
   return true;
 }
 
+//bcsedlon
+void NTPClient::setEpochTime(unsigned long currentEpoc) {
+	this->_currentEpoc = currentEpoc;
+}
+
 unsigned long NTPClient::getEpochTime() {
   return this->_timeOffset + // User offset
          this->_currentEpoc + // Epoc returned by the NTP server
