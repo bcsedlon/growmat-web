@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">GROWMAT WEB</string>
+    <string name="menu_settings">Settings</string>
+	<string name="btCancel">Cancel Repeating Timer</string>
+	<string name="btStart">Start Repeating Timer</string>
+	<string name="btOneTime">One-time Timer</string>
+</resources>
