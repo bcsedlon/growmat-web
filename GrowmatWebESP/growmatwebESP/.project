@@ -66,5 +66,10 @@
 			<type>2</type>
 			<location>C:/Users/pravoj01/eclipse/cpp-neon/eclipse/arduinoPlugin/packages/esp8266/hardware/esp8266/2.3.0/libraries/ESP8266mDNS</location>
 		</link>
+		<link>
+			<name>libraries/SPI</name>
+			<type>2</type>
+			<location>C:/Users/pravoj01/eclipse/cpp-neon/eclipse/arduinoPlugin/packages/esp8266/hardware/esp8266/2.3.0/libraries/SPI</location>
+		</link>
 	</linkedResources>
 </projectDescription>

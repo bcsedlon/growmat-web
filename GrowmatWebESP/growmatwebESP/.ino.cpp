@@ -2,7 +2,7 @@
 //This is a automatic generated file
 //Please do not modify this file
 //If you touch this file your change will be overwritten during the next build
-//This file has been generated on 2017-10-08 18:20:36
+//This file has been generated on 2018-02-26 10:56:14
 
 #include "Arduino.h"
 #include "libraries/ESP8266HTTPClient.h"
@@ -12,14 +12,18 @@
 #include "libraries/WiFiManager.h"
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
+#include <SPI.h>
+#include "libraries/Adafruit_GFX.h"
+#include "libraries/Adafruit_PCD8544.h"
 #include <EEPROM.h>
-#include "libraries/RF433.h"
+#include "libraries/RCSwitch.h"
 #include <WiFiUdp.h>
 #include "libraries/NTPClient.h"
 #include "libraries/interval.h"
 #include "libraries/Timezone.h"
 #include "libraries/OneWire.h"
 #include "libraries/DallasTemperature.h"
+#include "libraries/DHT.h"
 String getDeviceForm(int i, struct Device devices[]) ;
 void handleRoot();
 void saveApi() ;
