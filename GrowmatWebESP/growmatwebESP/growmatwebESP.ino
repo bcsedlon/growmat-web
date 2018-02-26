@@ -1,5 +1,6 @@
 //TODO: passwords to EEPROM, set time zone and year, month, day
 
+
 #include "libraries/ESP8266HTTPClient.h"
 //#define IP "184.106.153.149" // ThingSpeak IP Address: 184.106.153.149
 //String GET = "http://184.106.153.149/update?key=";//TEERFD89BN6SDE19";//8OC2G029OG74M1V9"; //TODO: 8OC2G029OG74M1V9 change to https://thingspeak.com api write key
