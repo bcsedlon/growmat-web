@@ -15,8 +15,20 @@
 #include "libraries/WiFiManager.h"         //https://github.com/tzapu/WiFiManager
 
 #include <ESP8266mDNS.h>
-//#include <ArduinoOTA.h>
+#include <ArduinoOTA.h>
 ESP8266WebServer server(80);
+
+#include <ESP8266HTTPUpdateServer.h>
+const char* host = "growmatweb";
+const char* update_path = "/firmware";
+//const char* update_username = "admin";
+//const char* update_password = "admin";
+//const char* ssid =  "........";
+//const char* password = "........";
+//ESP8266WebServer httpServer(80);
+ESP8266HTTPUpdateServer httpUpdater;
+
+
 
 char* htmlHeader = "<html><head><title>GROWMATWEB</title><meta name=\"viewport\" content=\"width=device-width\"><style type=\"text/css\">button {height:100px;width:100px;font-family:monospace;border-radius:5px;}</style></head><body><h1><a href=/>GROWMAT WEB</a></h1>";
 char* htmlFooter = "<hr><a href=/settings>SYSTEM SETTINGS</a></body></html>";
@@ -31,10 +43,11 @@ char writeApiKey[20];
 unsigned int talkbackID;
 char talkbackApiKey[20];
 
-
+HTTPClient http;  //Declare an object of class HTTPClient
+int httpCode;
 
 unsigned int errorCounter;
-
+/*
 static const uint8_t D0   = 16;
 static const uint8_t D1   = 5;
 static const uint8_t D2   = 4;
@@ -46,7 +59,7 @@ static const uint8_t D7   = 13;
 static const uint8_t D8   = 15;
 static const uint8_t D9   = 3;
 static const uint8_t D10  = 1;
-
+*/
 
 #include <WiFiUdp.h>
 
@@ -345,7 +358,6 @@ void saveInstruments() {
 	EEPROM.commit();
 }
 
-
 void setup() {
   // put your setup code here, to run once:
   //strcpy(writeApiKey, "SGRXDOXDL4F6CIGQ");
@@ -354,6 +366,8 @@ void setup() {
 
   Serial.begin(115200);
   Serial.print("\n\n");
+
+
 
 #ifdef LCD
   display.begin();
@@ -515,6 +529,8 @@ void setup() {
     ESP.restart();
   }*/
   //ArduinoOTA.begin();
+
+
 
   server.on("/", [](){
     Serial.println("/");
@@ -776,18 +792,53 @@ void setup() {
     server.send(200, "text/html", message);
   });
 
-
   server.begin();
 
-
-
   timeClient.update();
+
+  //MDNS.begin(host);
+  MDNS.begin(host);
+  httpUpdater.setup(&server, update_path, www_username, www_password);
+  //httpServer.begin();
+  MDNS.addService("http", "tcp", 80);
+
+
+  // Port defaults to 8266
+  //ArduinoOTA.setPort(8266);
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname(host);
+  // No authentication by default
+  //ArduinoOTA.setPassword((const char *)"xxxxx");
+  ArduinoOTA.onStart([]() {
+	Serial.println("OTA Start");
+  });
+  ArduinoOTA.onEnd([]() {
+	Serial.println("OTA End");
+    Serial.println("Rebooting...");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r\n", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+
+
 }
+
+bool checkin = false;
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  // ArduinoOTA.handle();
+  ArduinoOTA.handle();
+
   server.handleClient();
 
 #ifdef LCD
@@ -804,8 +855,6 @@ void loop() {
 	  minInterval.set(60000);
 	  //minInterval.set(5000);
 
-
-
 #ifdef LED1_PIN
 	  digitalWrite(LED1_PIN, LOW);
 #endif
@@ -813,13 +862,17 @@ void loop() {
 	  if(!ap)
 		  timeClient.update();
 
-
-
+	  if(!checkin) {
+		  http.begin("http://growmat.cz/growmatweb/dev/");
+	  	  httpCode = http.GET();
+	  	  if(httpCode > 0)
+	  		checkin = true;
+	  }
 
 	  if(serverName != "" && !ap) {
-		  HTTPClient http;  //Declare an object of class HTTPClient
+		  //HTTPClient http;  //Declare an object of class HTTPClient
 
-		  int httpCode;
+		  //int httpCode;
 		  do {
 			  //http.begin("http://api.thingspeak.com/talkbacks/18221/commands/execute?api_key=ED57BAC7V0GLPWL2");
 			  //String getTalkback = "http://api.thingspeak.com/talkbacks/" + String(talkbackID) + "/commands/execute?api_key=" + talkbackApiKey;
